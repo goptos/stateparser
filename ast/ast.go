@@ -47,7 +47,7 @@ func (_self *Ast) Create() error {
 	if err != nil {
 		return err
 	}
-	verbose.Printf(4, "::: Ast.Create() :::\n")
+	verbose.Printf(3, "::: Ast.Create() :::\n")
 	for i := 0; i < len(_self.Lexer.Tokens); i++ {
 		if _self.Lexer.Tokens[i].GetType() != tokens.StartTag {
 			continue
@@ -67,7 +67,7 @@ func (_self *Ast) Create() error {
 }
 
 func (_self *Ast) createR(index *int) (*nodes.StartElementNode, error) {
-	verbose.Printf(4, "%d\t%s\n", *index, _self.Lexer.Tokens[*index].GetName())
+	verbose.Printf(3, "%d\t%s\n", *index, _self.Lexer.Tokens[*index].GetName())
 	var startTagNode = nodes.NewStartElementNode(_self.Lexer.Tokens[*index], _self.KeywordAttributeNames)
 	*index++
 	if startTagNode.GetIsSelfClosing() {
@@ -105,7 +105,7 @@ func (_self *Ast) createR(index *int) (*nodes.StartElementNode, error) {
 }
 
 func (_self *Ast) Process() error {
-	verbose.Printf(4, "::: Ast.Process() :::\n")
+	verbose.Printf(2, "::: Ast.Process() :::\n")
 	var depth = 0
 	err := _self.processR(_self.Root, &depth)
 	if err != nil {

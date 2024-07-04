@@ -95,24 +95,30 @@ func (_self *Parser) prependToStatement(s string, args ...interface{}) {
 	_self.statements.Push(fmt.Sprintf(s, args...) + _self.statements.Pop())
 }
 
-func (_self *Parser) squashStatement() {
-	if _self.statements.Depth()-1 < 0 {
-		return
+func (_self *Parser) statementContains(s string, args ...interface{}) bool {
+	if _self.statements.Depth() < 0 {
+		return false
 	}
-	var nodeInfo = _self.nodeInfo.Pop()
-	var statement = _self.statements.Pop()
-	if nodeInfo.hasIf {
-		_self.appendToStatement(".DynChild(cx, %s, %s)",
-			nodeInfo.ifFunction,
-			statement)
-	} else {
-		_self.appendToStatement(".Child(%s)",
-			statement)
-	}
+	return strings.Contains(_self.statements.Peak(), fmt.Sprintf(s, args...))
 }
 
-func (_self *Parser) statementContains(s string, args ...interface{}) bool {
-	return strings.Contains(_self.statements.Peak(), fmt.Sprintf(s, args...))
+func (_self *Parser) squashStatement() {
+	if _self.statements.Depth() == 0 && _self.nodeInfo.Peak().hasIf {
+		_self.prependToStatement("system.DynElem(cx, %s, ", _self.nodeInfo.Peak().ifFunction)
+		_self.appendToStatement(")")
+	}
+	if _self.statements.Depth() == 0 {
+		return
+	}
+	var statement = _self.statements.Pop()
+	if _self.nodeInfo.Peak().hasIf {
+		_self.appendToStatement(".DynChild(cx, %s, %s)",
+			_self.nodeInfo.Peak().ifFunction,
+			statement)
+		return
+	}
+	_self.appendToStatement(".Child(%s)",
+		statement)
 }
 
 func (_self *Parser) ParseView(source string) error {
@@ -149,6 +155,7 @@ func (_self *Parser) ParseView(source string) error {
 		*/
 		if node.GetIsComponent() {
 			if _self.statementContains(", %s.View)", node.GetName()) {
+				_self.nodeInfo.Pop()
 				return nil
 			}
 			_self.newStatement("%s.View(cx", node.GetName())
@@ -159,12 +166,9 @@ func (_self *Parser) ParseView(source string) error {
 			}
 			_self.appendToStatement(")")
 		}
-		if _self.statements.Depth() == 0 && _self.nodeInfo.Peak().hasIf {
-			_self.prependToStatement("system.DynElem(")
-			_self.appendToStatement(", cx, %s)", _self.nodeInfo.Peak().ifFunction)
-		}
 		if node.GetIsSelfClosing() {
 			_self.squashStatement()
+			_self.nodeInfo.Pop()
 		}
 		return nil
 	}
@@ -226,6 +230,7 @@ func (_self *Parser) ParseView(source string) error {
 	_self.Ast.EndElementNodeProcessor = func(node *nodes.EndElementNode, depth *int) error {
 		(*nodes.EndElementNode).Print(node, depth)
 		_self.squashStatement()
+		_self.nodeInfo.Pop()
 		return nil
 	}
 	err := _self.Ast.Create()

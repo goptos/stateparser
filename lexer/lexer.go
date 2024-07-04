@@ -213,7 +213,7 @@ func (_self *Lexer) flushTextBufferToToken() {
 }
 
 func (_self *Lexer) emitToken() {
-	if verbose.Level >= 4 {
+	if verbose.Level >= 3 {
 		_self.token.Print()
 	}
 	_self.Tokens = append(_self.Tokens, _self.token)
