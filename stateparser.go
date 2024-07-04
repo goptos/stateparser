@@ -104,8 +104,7 @@ func (_self *Parser) statementContains(s string, args ...interface{}) bool {
 
 func (_self *Parser) squashStatement() {
 	if _self.statements.Depth() == 0 && _self.nodeInfo.Peak().hasIf {
-		_self.prependToStatement("system.DynElem(cx, %s, ", _self.nodeInfo.Peak().ifFunction)
-		_self.appendToStatement(")")
+		_self.prependToStatement("`<invalid view: if statements on root elements are not supported>` //")
 	}
 	if _self.statements.Depth() == 0 {
 		return
@@ -218,10 +217,10 @@ func (_self *Parser) ParseView(source string) error {
 	*/
 	_self.Ast.DynAttributeNodeProcessor = func(node *nodes.DynAttributeNode, depth *int) error {
 		(*nodes.DynAttributeNode).Print(node, depth)
-		_self.appendToStatement(".DynAttr(\"%s\", \"%s\", %s)",
+		_self.appendToStatement(".DynAttr(cx, %s, \"%s\", \"%s\")",
+			node.GetEffect(),
 			node.GetName(),
-			node.GetValue(),
-			node.GetEffect())
+			node.GetValue())
 		return nil
 	}
 	/*
