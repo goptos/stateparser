@@ -430,8 +430,7 @@ func (_self *DynAttributeNode) GetEffect() string {
 }
 
 func (_self *EventAttributeNode) GetEffect() string {
-	utils.Assert(false, "token has effect property", 2)
-	return ""
+	return _self.effect
 }
 
 func (_self *KeywordAttributeNode) GetEffect() string {
@@ -674,7 +673,7 @@ func (_self *StartElementNode) Print(depth *int) error {
 	if _self.isSelfClosing {
 		selfClosing = "(SelfClosing)"
 	}
-	verbose.Printf(0, indent+"%s    %s    %d Children    %s    %s\n",
+	verbose.Printf(4, indent+"%s    %s    %d Children    %s    %s\n",
 		_self._type,
 		_self.name,
 		len(_self.children),
@@ -688,7 +687,7 @@ func (_self *EndElementNode) Print(depth *int) error {
 	for i := 0; i <= *depth; i++ {
 		indent = indent + " "
 	}
-	verbose.Printf(0, indent+"%s    %s    %s\n",
+	verbose.Printf(4, indent+"%s    %s    %s\n",
 		_self._type,
 		_self.name,
 		_self.startElemNode.name)
@@ -700,7 +699,7 @@ func (_self *CommentNode) Print(depth *int) error {
 	for i := 0; i <= *depth; i++ {
 		indent = indent + " "
 	}
-	verbose.Printf(0, indent+"%s    %s\n",
+	verbose.Printf(4, indent+"%s    %s\n",
 		_self._type,
 		_self.data)
 	return nil
@@ -711,7 +710,7 @@ func (_self *TextNode) Print(depth *int) error {
 	for i := 0; i <= *depth; i++ {
 		indent = indent + " "
 	}
-	verbose.Printf(0, indent+"%s    %s\n",
+	verbose.Printf(4, indent+"%s    %s\n",
 		_self._type,
 		_self.data)
 	return nil
@@ -722,7 +721,7 @@ func (_self *DynTextNode) Print(depth *int) error {
 	for i := 0; i <= *depth; i++ {
 		indent = indent + " "
 	}
-	verbose.Printf(0, indent+"%s    {%s}\n",
+	verbose.Printf(4, indent+"%s    {%s}\n",
 		_self._type,
 		_self.effect)
 	return nil
@@ -733,7 +732,7 @@ func (_self *AttributeNode) Print(depth *int) error {
 	for i := 0; i <= *depth; i++ {
 		indent = indent + " "
 	}
-	verbose.Printf(0, indent+"%s    %s    %s\n",
+	verbose.Printf(4, indent+"%s    %s    %s\n",
 		_self._type,
 		_self.name,
 		_self.value)
@@ -745,7 +744,7 @@ func (_self *DynAttributeNode) Print(depth *int) error {
 	for i := 0; i <= *depth; i++ {
 		indent = indent + " "
 	}
-	verbose.Printf(0, indent+"%s    %s    %s    {%s}\n",
+	verbose.Printf(4, indent+"%s    %s    %s    {%s}\n",
 		_self._type,
 		_self.name,
 		_self.value,
@@ -758,7 +757,7 @@ func (_self *EventAttributeNode) Print(depth *int) error {
 	for i := 0; i <= *depth; i++ {
 		indent = indent + " "
 	}
-	verbose.Printf(0, indent+"%s    %s    %s    {%s}\n",
+	verbose.Printf(4, indent+"%s    %s    %s    {%s}\n",
 		_self._type,
 		_self.name,
 		_self.event,
@@ -771,7 +770,7 @@ func (_self *KeywordAttributeNode) Print(depth *int) error {
 	for i := 0; i <= *depth; i++ {
 		indent = indent + " "
 	}
-	verbose.Printf(0, indent+"%s    %s    {%s}\n",
+	verbose.Printf(4, indent+"%s    %s    {%s}\n",
 		_self._type,
 		_self.name,
 		_self.effect)

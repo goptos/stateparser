@@ -6,11 +6,12 @@ import (
 
 	"github.com/goptos/stateparser/ast"
 	"github.com/goptos/stateparser/ast/nodes"
+	"github.com/goptos/stateparser/stacks"
 )
 
 type nodeInfo struct {
 	isEach          bool
-	isDynElem       bool
+	hasIf           bool
 	isComponent     bool
 	isSelfClosing   bool
 	ifFunction      string
@@ -20,20 +21,20 @@ type nodeInfo struct {
 }
 
 type Parser struct {
-	Ast        *ast.Ast
-	Result     string
-	statements []string
-	index      int
-	nodeInfo   *nodeInfo
+	Ast           *ast.Ast
+	Result        string
+	statements    []string
+	index         int
+	nodeInfoStack stacks.Stack[nodeInfo]
 }
 
 func New() *Parser {
 	return &Parser{
-		Ast:        nil,
-		Result:     "",
-		statements: []string{},
-		index:      0,
-		nodeInfo:   nil,
+		Ast:           nil,
+		Result:        "",
+		statements:    []string{},
+		index:         0,
+		nodeInfoStack: stacks.New[nodeInfo](),
 	}
 }
 
@@ -42,13 +43,13 @@ func (_self *Parser) reset() {
 	_self.Result = ""
 	_self.statements = []string{}
 	_self.index = -1
-	_self.nodeInfo = nil
+	_self.nodeInfoStack = stacks.New[nodeInfo]()
 }
 
 func (_self *Parser) updateNodeInfo(node *nodes.StartElementNode) {
-	_self.nodeInfo = &nodeInfo{
+	var nodeInfo = nodeInfo{
 		isEach:          false,
-		isDynElem:       false,
+		hasIf:           false,
 		isComponent:     node.GetIsComponent(),
 		isSelfClosing:   node.GetIsSelfClosing(),
 		ifFunction:      "",
@@ -60,28 +61,29 @@ func (_self *Parser) updateNodeInfo(node *nodes.StartElementNode) {
 		switch childNode.GetType() {
 		case nodes.KeywordAttribute:
 			if childNode.GetName() == "if" {
-				_self.nodeInfo.ifFunction = childNode.GetEffect()
+				nodeInfo.ifFunction = childNode.GetEffect()
 			}
 			if childNode.GetName() == "each" {
-				_self.nodeInfo.collectFunction = childNode.GetEffect()
+				nodeInfo.collectFunction = childNode.GetEffect()
 			}
 			if childNode.GetName() == "key" {
-				_self.nodeInfo.keyFunction = childNode.GetEffect()
+				nodeInfo.keyFunction = childNode.GetEffect()
 			}
 		case nodes.StartElement:
 			if childNode.GetIsComponent() && childNode.GetIsSelfClosing() {
-				_self.nodeInfo.viewComponent = childNode.GetName()
+				nodeInfo.viewComponent = childNode.GetName()
 			}
 		}
 	}
-	if _self.nodeInfo.collectFunction != "" &&
-		_self.nodeInfo.keyFunction != "" &&
-		_self.nodeInfo.viewComponent != "" {
-		_self.nodeInfo.isEach = true
+	if nodeInfo.collectFunction != "" &&
+		nodeInfo.keyFunction != "" &&
+		nodeInfo.viewComponent != "" {
+		nodeInfo.isEach = true
 	}
-	if _self.nodeInfo.ifFunction != "" {
-		_self.nodeInfo.isDynElem = true
+	if nodeInfo.ifFunction != "" {
+		nodeInfo.hasIf = true
 	}
+	_self.nodeInfoStack.Push(nodeInfo)
 }
 
 func (_self *Parser) newStatement(s string, args ...interface{}) {
@@ -111,9 +113,10 @@ func (_self *Parser) squashStatement() {
 	if _self.index-1 < 0 {
 		return
 	}
-	if _self.nodeInfo.isDynElem {
+	var nodeInfo = _self.nodeInfoStack.Pop()
+	if nodeInfo.hasIf {
 		_self.appendToPrevStatement(".DynChild(cx, %s, %s)",
-			_self.nodeInfo.ifFunction,
+			nodeInfo.ifFunction,
 			_self.statements[_self.index])
 	} else {
 		_self.appendToPrevStatement(".Child(%s)",
@@ -142,6 +145,7 @@ func (_self *Parser) ParseView(source string) error {
 		`<...`
 	*/
 	_self.Ast.StartElementNodeProcessor = func(node *nodes.StartElementNode, depth *int) error {
+		(*nodes.StartElementNode).Print(node, depth)
 		_self.updateNodeInfo(node)
 		/*
 			`<div>` => `(*Elem).New(nil, "div")`
@@ -152,12 +156,12 @@ func (_self *Parser) ParseView(source string) error {
 				`<ul each={cF} key={kF}><Li /></ul>` =>
 				`system.Each((*Elem).New(nil, "ul"), cx, cF, kF, Li.View)`
 			*/
-			if _self.nodeInfo.isEach {
+			if _self.nodeInfoStack.Peak().isEach {
 				_self.prependToStatement("system.Each(")
 				_self.appendToStatement(", cx, %s, %s, %s.View)",
-					_self.nodeInfo.collectFunction,
-					_self.nodeInfo.keyFunction,
-					_self.nodeInfo.viewComponent)
+					_self.nodeInfoStack.Peak().collectFunction,
+					_self.nodeInfoStack.Peak().keyFunction,
+					_self.nodeInfoStack.Peak().viewComponent)
 			}
 		}
 		/*
@@ -175,9 +179,9 @@ func (_self *Parser) ParseView(source string) error {
 			}
 			_self.appendToStatement(")")
 		}
-		if _self.index == 0 && _self.nodeInfo.isDynElem {
+		if _self.index == 0 && _self.nodeInfoStack.Peak().hasIf {
 			_self.prependToStatement("system.DynElem(")
-			_self.appendToStatement(", cx, %s)", _self.nodeInfo.ifFunction)
+			_self.appendToStatement(", cx, %s)", _self.nodeInfoStack.Peak().ifFunction)
 		}
 		if node.GetIsSelfClosing() {
 			_self.squashStatement()
@@ -188,6 +192,7 @@ func (_self *Parser) ParseView(source string) error {
 		`Hello` => `.Text("Hello")`
 	*/
 	_self.Ast.TextNodeProcessor = func(node *nodes.TextNode, depth *int) error {
+		(*nodes.TextNode).Print(node, depth)
 		_self.appendToStatement(".Text(\"%s\")",
 			node.GetData())
 		return nil
@@ -196,6 +201,7 @@ func (_self *Parser) ParseView(source string) error {
 		`{count.Get()}` => `.DynText(cx, func() string { return fmt.Sprintf("%v", count.Get()) })`
 	*/
 	_self.Ast.DynTextNodeProcessor = func(node *nodes.DynTextNode, depth *int) error {
+		(*nodes.DynTextNode).Print(node, depth)
 		_self.appendToStatement(".DynText(cx, func() string { return fmt.Sprintf(\"%%v\", %s) })",
 			node.GetEffect())
 		return nil
@@ -204,10 +210,11 @@ func (_self *Parser) ParseView(source string) error {
 		`id="sub-button"` => `.Attr("id", "sub-button")`
 	*/
 	_self.Ast.AttributeNodeProcessor = func(node *nodes.AttributeNode, depth *int) error {
-		if _self.nodeInfo.isComponent {
+		(*nodes.AttributeNode).Print(node, depth)
+		if _self.nodeInfoStack.Peak().isComponent {
 			return nil
 		}
-		_self.appendToStatement(".Attr(\"%s\", %s)",
+		_self.appendToStatement(".Attr(\"%s\", \"%s\")",
 			node.GetName(),
 			node.GetValue())
 		return nil
@@ -216,6 +223,7 @@ func (_self *Parser) ParseView(source string) error {
 		`on:click={ func(Event) {} }` => `.On("click", func(Event))`
 	*/
 	_self.Ast.EventAttributeNodeProcessor = func(node *nodes.EventAttributeNode, depth *int) error {
+		(*nodes.EventAttributeNode).Print(node, depth)
 		_self.appendToStatement(".On(\"%s\", %s)",
 			node.GetEvent(),
 			node.GetEffect())
@@ -225,6 +233,7 @@ func (_self *Parser) ParseView(source string) error {
 		`class:dark={ func() bool {} }` => `.DynAttr("class", "dark", func() bool)`
 	*/
 	_self.Ast.DynAttributeNodeProcessor = func(node *nodes.DynAttributeNode, depth *int) error {
+		(*nodes.DynAttributeNode).Print(node, depth)
 		_self.appendToStatement(".DynAttr(\"%s\", \"%s\", %s)",
 			node.GetName(),
 			node.GetValue(),
@@ -235,6 +244,7 @@ func (_self *Parser) ParseView(source string) error {
 		</...>
 	*/
 	_self.Ast.EndElementNodeProcessor = func(node *nodes.EndElementNode, depth *int) error {
+		(*nodes.EndElementNode).Print(node, depth)
 		_self.squashStatement()
 		return nil
 	}
@@ -246,7 +256,7 @@ func (_self *Parser) ParseView(source string) error {
 	if err != nil {
 		return err
 	}
-	_self.appendToStatement("\r\n")
+	_self.appendToStatement("\r")
 	_self.Result = _self.statements[0]
 	return nil
 }
