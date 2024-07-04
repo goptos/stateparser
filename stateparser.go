@@ -21,29 +21,26 @@ type nodeInfo struct {
 }
 
 type Parser struct {
-	Ast           *ast.Ast
-	Result        string
-	statements    []string
-	index         int
-	nodeInfoStack stacks.Stack[nodeInfo]
+	Ast        *ast.Ast
+	Result     string
+	statements stacks.Stack[string]
+	nodeInfo   stacks.Stack[nodeInfo]
 }
 
 func New() *Parser {
 	return &Parser{
-		Ast:           nil,
-		Result:        "",
-		statements:    []string{},
-		index:         0,
-		nodeInfoStack: stacks.New[nodeInfo](),
+		Ast:        nil,
+		Result:     "",
+		statements: stacks.New[string](),
+		nodeInfo:   stacks.New[nodeInfo](),
 	}
 }
 
 func (_self *Parser) reset() {
 	_self.Ast = nil
 	_self.Result = ""
-	_self.statements = []string{}
-	_self.index = -1
-	_self.nodeInfoStack = stacks.New[nodeInfo]()
+	_self.statements = stacks.New[string]()
+	_self.nodeInfo = stacks.New[nodeInfo]()
 }
 
 func (_self *Parser) updateNodeInfo(node *nodes.StartElementNode) {
@@ -83,56 +80,39 @@ func (_self *Parser) updateNodeInfo(node *nodes.StartElementNode) {
 	if nodeInfo.ifFunction != "" {
 		nodeInfo.hasIf = true
 	}
-	_self.nodeInfoStack.Push(nodeInfo)
+	_self.nodeInfo.Push(nodeInfo)
 }
 
 func (_self *Parser) newStatement(s string, args ...interface{}) {
-	_self.statements = append(_self.statements, fmt.Sprintf(s, args...))
-	_self.index = len(_self.statements) - 1
+	_self.statements.Push(fmt.Sprintf(s, args...))
 }
 
 func (_self *Parser) appendToStatement(s string, args ...interface{}) {
-	_self.statements[_self.index] = _self.statements[_self.index] +
-		fmt.Sprintf(s, args...)
+	_self.statements.Push(_self.statements.Pop() + fmt.Sprintf(s, args...))
 }
 
 func (_self *Parser) prependToStatement(s string, args ...interface{}) {
-	_self.statements[_self.index] = fmt.Sprintf(s, args...) +
-		_self.statements[_self.index]
-}
-
-func (_self *Parser) appendToPrevStatement(s string, args ...interface{}) {
-	if _self.index-1 < 0 {
-		return
-	}
-	_self.statements[_self.index-1] = _self.statements[_self.index-1] +
-		fmt.Sprintf(s, args...)
+	_self.statements.Push(fmt.Sprintf(s, args...) + _self.statements.Pop())
 }
 
 func (_self *Parser) squashStatement() {
-	if _self.index-1 < 0 {
+	if _self.statements.Depth()-1 < 0 {
 		return
 	}
-	var nodeInfo = _self.nodeInfoStack.Pop()
+	var nodeInfo = _self.nodeInfo.Pop()
+	var statement = _self.statements.Pop()
 	if nodeInfo.hasIf {
-		_self.appendToPrevStatement(".DynChild(cx, %s, %s)",
+		_self.appendToStatement(".DynChild(cx, %s, %s)",
 			nodeInfo.ifFunction,
-			_self.statements[_self.index])
+			statement)
 	} else {
-		_self.appendToPrevStatement(".Child(%s)",
-			_self.statements[_self.index])
+		_self.appendToStatement(".Child(%s)",
+			statement)
 	}
-	// drop the last statement
-	_self.statements = _self.statements[0:_self.index]
-	// re-index the array
-	_self.index = len(_self.statements) - 1
 }
 
 func (_self *Parser) statementContains(s string, args ...interface{}) bool {
-	if _self.index-1 < 0 {
-		return false
-	}
-	return strings.Contains(_self.statements[_self.index], fmt.Sprintf(s, args...))
+	return strings.Contains(_self.statements.Peak(), fmt.Sprintf(s, args...))
 }
 
 func (_self *Parser) ParseView(source string) error {
@@ -156,12 +136,12 @@ func (_self *Parser) ParseView(source string) error {
 				`<ul each={cF} key={kF}><Li /></ul>` =>
 				`system.Each((*Elem).New(nil, "ul"), cx, cF, kF, Li.View)`
 			*/
-			if _self.nodeInfoStack.Peak().isEach {
+			if _self.nodeInfo.Peak().isEach {
 				_self.prependToStatement("system.Each(")
 				_self.appendToStatement(", cx, %s, %s, %s.View)",
-					_self.nodeInfoStack.Peak().collectFunction,
-					_self.nodeInfoStack.Peak().keyFunction,
-					_self.nodeInfoStack.Peak().viewComponent)
+					_self.nodeInfo.Peak().collectFunction,
+					_self.nodeInfo.Peak().keyFunction,
+					_self.nodeInfo.Peak().viewComponent)
 			}
 		}
 		/*
@@ -179,9 +159,9 @@ func (_self *Parser) ParseView(source string) error {
 			}
 			_self.appendToStatement(")")
 		}
-		if _self.index == 0 && _self.nodeInfoStack.Peak().hasIf {
+		if _self.statements.Depth() == 0 && _self.nodeInfo.Peak().hasIf {
 			_self.prependToStatement("system.DynElem(")
-			_self.appendToStatement(", cx, %s)", _self.nodeInfoStack.Peak().ifFunction)
+			_self.appendToStatement(", cx, %s)", _self.nodeInfo.Peak().ifFunction)
 		}
 		if node.GetIsSelfClosing() {
 			_self.squashStatement()
@@ -211,7 +191,7 @@ func (_self *Parser) ParseView(source string) error {
 	*/
 	_self.Ast.AttributeNodeProcessor = func(node *nodes.AttributeNode, depth *int) error {
 		(*nodes.AttributeNode).Print(node, depth)
-		if _self.nodeInfoStack.Peak().isComponent {
+		if _self.nodeInfo.Peak().isComponent {
 			return nil
 		}
 		_self.appendToStatement(".Attr(\"%s\", \"%s\")",
@@ -256,7 +236,6 @@ func (_self *Parser) ParseView(source string) error {
 	if err != nil {
 		return err
 	}
-	_self.appendToStatement("\r")
-	_self.Result = _self.statements[0]
+	_self.Result = _self.statements.Pop() + "\r"
 	return nil
 }

@@ -14,6 +14,10 @@ func New[T any]() Stack[T] {
 	}
 }
 
+func (_self *Stack[T]) Depth() int {
+	return _self.pointer
+}
+
 func (_self *Stack[T]) Push(t T) {
 	fmt.Printf("stack.Push(%v)\n", t)
 	_self.stack = append(_self.stack, t)
