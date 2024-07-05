@@ -80,41 +80,43 @@ const (
 )
 
 type Lexer struct {
-	codeBuffer      string
-	codeIndentCount int
-	char            string
-	chars           []string
-	curser          int
-	length          int
-	peakBuffer      string
-	returnState     string
-	_rune           rune
-	runes           []rune
-	Source          string
-	state           string
-	textBuffer      string
-	token           tokens.Token
-	Tokens          []tokens.Token
+	codeBuffer            string
+	codeIndentCount       int
+	char                  string
+	chars                 []string
+	curser                int
+	KeywordAttributeNames map[string]interface{}
+	length                int
+	peakBuffer            string
+	returnState           string
+	_rune                 rune
+	runes                 []rune
+	Source                string
+	state                 string
+	textBuffer            string
+	token                 tokens.Token
+	Tokens                []tokens.Token
 }
 
 func New(source string) *Lexer {
 	var runes, chars = intoArray(source)
 	return &Lexer{
-		codeBuffer:      "",
-		codeIndentCount: 0,
-		char:            chars[0],
-		chars:           chars,
-		curser:          0,
-		length:          len(chars),
-		peakBuffer:      "",
-		returnState:     "",
-		_rune:           runes[0],
-		runes:           runes,
-		state:           dataState,
-		Source:          source,
-		textBuffer:      "",
-		token:           nil,
-		Tokens:          []tokens.Token{}}
+		codeBuffer:            "",
+		codeIndentCount:       0,
+		char:                  chars[0],
+		chars:                 chars,
+		curser:                0,
+		KeywordAttributeNames: make(map[string]interface{}),
+		length:                len(chars),
+		peakBuffer:            "",
+		returnState:           "",
+		_rune:                 runes[0],
+		runes:                 runes,
+		state:                 dataState,
+		Source:                source,
+		textBuffer:            "",
+		token:                 nil,
+		Tokens:                []tokens.Token{}}
 }
 
 func (_self *Lexer) consume() {
@@ -222,6 +224,7 @@ func (_self *Lexer) emitToken() {
 
 func (_self *Lexer) Tokenise() error {
 	verbose.Printf(4, "::: Lexer.Tokenise() :::\n")
+	verbose.Printf(4, "KeywordAttributeNames:\n%v\n", _self.KeywordAttributeNames)
 	for _self.state != endOfFileState {
 		switch _self.state {
 
@@ -345,8 +348,19 @@ func (_self *Lexer) Tokenise() error {
 			}
 
 		case attributeNameState: // https://html.spec.whatwg.org/#attribute-name-state
+			for mapK := range _self.KeywordAttributeNames {
+				_self.peak(len(mapK))
+				if _self.peakBuffer == mapK {
+					_self.token.SetAttributeType(tokens.KeywordAttribute)
+				}
+			}
+			_self.peak(len("on"))
+			if _self.peakBuffer == "on" {
+				_self.token.SetAttributeType(tokens.EventAttribute)
+			}
 			_self.consume()
 			if isAsciiWhiteSpace(_self._rune) {
+				_self.token.SetAttributeType(tokens.ArgumentAttribute)
 				_self.reConsume()
 				_self.state = afterAttributeNameState
 				continue
@@ -376,6 +390,11 @@ func (_self *Lexer) Tokenise() error {
 			case "<":
 				verbose.Printf(0, "%s: unexpected-character-in-attribute-name %s\n", attributeNameState, _self.char)
 				return fmt.Errorf("%s: unexpected-character-in-attribute-name %s", attributeNameState, _self.char)
+			case ":":
+				if _self.token.GetAttributeType() != tokens.EventAttribute {
+					_self.token.SetAttributeType(tokens.DynamicAttribute)
+				}
+				_self.token.AppendToAttributeName(_self.char)
 			default:
 				_self.token.AppendToAttributeName(_self.char)
 			}

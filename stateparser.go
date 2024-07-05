@@ -43,11 +43,10 @@ func (_self *Parser) reset() {
 	_self.nodeInfo = stacks.New[nodeInfo]()
 }
 
-func (_self *Parser) updateNodeInfo(node *nodes.StartElementNode) {
+func (_self *Parser) updateNodeInfo(node nodes.Node) {
 	var nodeInfo = nodeInfo{
 		isEach:          false,
 		hasIf:           false,
-		isComponent:     node.GetIsComponent(),
 		isSelfClosing:   node.GetIsSelfClosing(),
 		ifFunction:      "",
 		collectFunction: "",
@@ -66,8 +65,8 @@ func (_self *Parser) updateNodeInfo(node *nodes.StartElementNode) {
 			if childNode.GetName() == "key" {
 				nodeInfo.keyFunction = childNode.GetEffect()
 			}
-		case nodes.StartElement:
-			if childNode.GetIsComponent() && childNode.GetIsSelfClosing() {
+		case nodes.Component:
+			if childNode.GetIsSelfClosing() {
 				nodeInfo.viewComponent = childNode.GetName()
 			}
 		}
@@ -123,48 +122,50 @@ func (_self *Parser) squashStatement() {
 func (_self *Parser) ParseView(source string) error {
 	_self.reset()
 	_self.Ast = ast.New(source)
-	_self.Ast.KeywordAttributeNames["if"] = nil
-	_self.Ast.KeywordAttributeNames["each"] = nil
-	_self.Ast.KeywordAttributeNames["key"] = nil
+	_self.Ast.AddKeywordAttributeName("if")
+	_self.Ast.AddKeywordAttributeName("each")
+	_self.Ast.AddKeywordAttributeName("key")
 	/*
-		`<...`
+		`<div>` => `(*Elem).New(nil, "div")`
 	*/
 	_self.Ast.StartElementNodeProcessor = func(node *nodes.StartElementNode, depth *int) error {
 		(*nodes.StartElementNode).Print(node, depth)
 		_self.updateNodeInfo(node)
+		_self.newStatement("(*Elem).New(nil, \"%s\")", node.GetName())
 		/*
-			`<div>` => `(*Elem).New(nil, "div")`
+			`<ul each={cF} key={kF}><Li /></ul>` =>
+			`system.Each((*Elem).New(nil, "ul"), cx, cF, kF, Li.View)`
 		*/
-		if !node.GetIsComponent() {
-			_self.newStatement("(*Elem).New(nil, \"%s\")", node.GetName())
-			/*
-				`<ul each={cF} key={kF}><Li /></ul>` =>
-				`system.Each((*Elem).New(nil, "ul"), cx, cF, kF, Li.View)`
-			*/
-			if _self.nodeInfo.Peak().isEach {
-				_self.prependToStatement("system.Each(")
-				_self.appendToStatement(", cx, %s, %s, %s.View)",
-					_self.nodeInfo.Peak().collectFunction,
-					_self.nodeInfo.Peak().keyFunction,
-					_self.nodeInfo.Peak().viewComponent)
+		if _self.nodeInfo.Peak().isEach {
+			_self.prependToStatement("system.Each(")
+			_self.appendToStatement(", cx, %s, %s, %s.View)",
+				_self.nodeInfo.Peak().collectFunction,
+				_self.nodeInfo.Peak().keyFunction,
+				_self.nodeInfo.Peak().viewComponent)
+		}
+		if node.GetIsSelfClosing() {
+			_self.squashStatement()
+			_self.nodeInfo.Pop()
+		}
+		return nil
+	}
+	/*
+		`<Button arg1 arg2 />` => `Button.View(cx, arg1, arg2)`
+	*/
+	_self.Ast.ComponentNodeProcessor = func(node *nodes.ComponentNode, depth *int) error {
+		(*nodes.ComponentNode).Print(node, depth)
+		if _self.statementContains(", %s.View)", node.GetName()) {
+			return nil
+		}
+		_self.updateNodeInfo(node)
+		_self.newStatement("%s.View(cx", node.GetName())
+		for _, childNode := range node.GetChildren() {
+			switch childNode.GetType() {
+			case nodes.Attribute:
+				_self.appendToStatement(", %s", childNode.GetName())
 			}
 		}
-		/*
-			`<Button arg1 arg2 />` => `Button.View(cx, arg1, arg2)`
-		*/
-		if node.GetIsComponent() {
-			if _self.statementContains(", %s.View)", node.GetName()) {
-				_self.nodeInfo.Pop()
-				return nil
-			}
-			_self.newStatement("%s.View(cx", node.GetName())
-			for _, childNode := range node.GetChildren() {
-				if childNode.GetType() == nodes.Attribute {
-					_self.appendToStatement(", %s", childNode.GetName())
-				}
-			}
-			_self.appendToStatement(")")
-		}
+		_self.appendToStatement(")")
 		if node.GetIsSelfClosing() {
 			_self.squashStatement()
 			_self.nodeInfo.Pop()

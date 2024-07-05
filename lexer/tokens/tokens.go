@@ -17,7 +17,18 @@ const (
 	EndOfFile TokenType = "EndOfFile"
 )
 
+type AttributeType string
+
+const (
+	NormalAttribute   AttributeType = "NormalAttribute"
+	EventAttribute    AttributeType = "EventAttribute"
+	DynamicAttribute  AttributeType = "DynamicAttribute"
+	KeywordAttribute  AttributeType = "KeywordAttribute"
+	ArgumentAttribute AttributeType = "ArgumentAttribute"
+)
+
 type Attribute struct {
+	Type  AttributeType
 	Name  string
 	Value string
 }
@@ -97,6 +108,7 @@ type Token interface {
 	GetName() string
 	GetData() string
 	GetAttributes() []Attribute
+	GetAttributeType() AttributeType
 	GetIsSelfClosing() bool
 	GetIsComponent() bool
 	NewAttribute()
@@ -104,6 +116,7 @@ type Token interface {
 	AppendToData(string)
 	AppendToAttributeName(string)
 	AppendToAttributeValue(string)
+	SetAttributeType(AttributeType)
 	SetIsComponent(bool)
 	SetIsSelfClosing(bool)
 	Print()
@@ -225,6 +238,37 @@ func (_self *EndOfFileToken) GetAttributes() []Attribute {
 	return []Attribute{}
 }
 
+// GetAttributeType()
+
+func (_self *StartTagToken) GetAttributeType() AttributeType {
+	return _self.attributes[len(_self.attributes)-1].Type
+}
+
+func (_self *EndTagToken) GetAttributeType() AttributeType {
+	utils.Assert(false, "token has attributes property", 2)
+	return NormalAttribute
+}
+
+func (_self *CommentToken) GetAttributeType() AttributeType {
+	utils.Assert(false, "token has attributes property", 2)
+	return NormalAttribute
+}
+
+func (_self *TextToken) GetAttributeType() AttributeType {
+	utils.Assert(false, "token has attributes property", 2)
+	return NormalAttribute
+}
+
+func (_self *CodeToken) GetAttributeType() AttributeType {
+	utils.Assert(false, "token has attributes property", 2)
+	return NormalAttribute
+}
+
+func (_self *EndOfFileToken) GetAttributeType() AttributeType {
+	utils.Assert(false, "token has attributes property", 2)
+	return NormalAttribute
+}
+
 // GetIsSelfClosing()
 
 func (_self *StartTagToken) GetIsSelfClosing() bool {
@@ -291,6 +335,7 @@ func (_self *EndOfFileToken) GetIsComponent() bool {
 
 func (_self *StartTagToken) NewAttribute() {
 	_self.attributes = append(_self.attributes, Attribute{
+		Type:  NormalAttribute,
 		Name:  "",
 		Value: ""})
 }
@@ -419,6 +464,32 @@ func (_self *EndOfFileToken) AppendToAttributeValue(s string) {
 	utils.Assert(false, "token has attributes property", 2)
 }
 
+// SetAttributeType()
+
+func (_self *StartTagToken) SetAttributeType(t AttributeType) {
+	_self.attributes[len(_self.attributes)-1].Type = t
+}
+
+func (_self *EndTagToken) SetAttributeType(t AttributeType) {
+	utils.Assert(false, "token has attributes property", 2)
+}
+
+func (_self *CommentToken) SetAttributeType(t AttributeType) {
+	utils.Assert(false, "token has attributes property", 2)
+}
+
+func (_self *TextToken) SetAttributeType(t AttributeType) {
+	utils.Assert(false, "token has attributes property", 2)
+}
+
+func (_self *CodeToken) SetAttributeType(t AttributeType) {
+	utils.Assert(false, "token has attributes property", 2)
+}
+
+func (_self *EndOfFileToken) SetAttributeType(t AttributeType) {
+	utils.Assert(false, "token has attributes property", 2)
+}
+
 // SetIsComponent()
 
 func (_self *StartTagToken) SetIsComponent(b bool) {
@@ -489,7 +560,7 @@ func (_self *StartTagToken) Print() {
 		component,
 		selfClosing)
 	for i, attribute := range _self.attributes {
-		verbose.Printf(0, " attribute%d\t%s\t%s\n", i, attribute.Name, attribute.Value)
+		verbose.Printf(0, " attribute%d\t%s\t%s\t%s\n", i, attribute.Type, attribute.Name, attribute.Value)
 	}
 }
 
