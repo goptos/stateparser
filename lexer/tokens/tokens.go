@@ -6,6 +6,14 @@ import (
 
 var verbose = (*utils.Verbose).New(nil)
 
+func runeCount(s string) int {
+	var count = 0
+	for range s {
+		count++
+	}
+	return count
+}
+
 type TokenType string
 
 const (
@@ -16,6 +24,13 @@ const (
 	Code      TokenType = "Code"
 	EndOfFile TokenType = "EndOfFile"
 )
+
+type Position struct {
+	StartLine   int
+	StartColumn int
+	EndLine     int
+	EndColumn   int
+}
 
 type AttributeType string
 
@@ -28,13 +43,16 @@ const (
 )
 
 type Attribute struct {
-	Type  AttributeType
-	Name  string
-	Value string
+	Type          AttributeType
+	NamePosition  Position
+	ValuePosition Position
+	Name          string
+	Value         string
 }
 
 type StartTagToken struct {
 	_type         TokenType
+	position      Position
 	name          string
 	attributes    []Attribute
 	isComponent   bool
@@ -42,81 +60,120 @@ type StartTagToken struct {
 }
 
 type EndTagToken struct {
-	_type TokenType
-	name  string
+	_type    TokenType
+	position Position
+	name     string
 }
 
 type CommentToken struct {
-	_type TokenType
-	data  string
+	_type    TokenType
+	position Position
+	data     string
 }
 
 type TextToken struct {
-	_type TokenType
-	data  string
+	_type    TokenType
+	position Position
+	data     string
 }
 
 type CodeToken struct {
-	_type TokenType
-	data  string
+	_type    TokenType
+	position Position
+	data     string
 }
 
 type EndOfFileToken struct {
-	_type TokenType
+	_type    TokenType
+	position Position
 }
 
-func NewStartTagToken() *StartTagToken {
+func NewStartTagToken(ln int, ch int) *StartTagToken {
 	return &StartTagToken{
-		_type:         StartTag,
+		_type: StartTag,
+		position: Position{
+			StartLine:   ln,
+			StartColumn: ch,
+			EndLine:     ln,
+			EndColumn:   ch},
 		name:          "",
 		attributes:    []Attribute{},
 		isComponent:   false,
 		isSelfClosing: false}
 }
 
-func NewEndTagToken() *EndTagToken {
+func NewEndTagToken(ln int, ch int) *EndTagToken {
 	return &EndTagToken{
 		_type: EndTag,
-		name:  ""}
+		position: Position{
+			StartLine:   ln,
+			StartColumn: ch,
+			EndLine:     ln,
+			EndColumn:   ch},
+		name: ""}
 }
 
-func NewCommentToken() *CommentToken {
+func NewCommentToken(ln int, ch int) *CommentToken {
 	return &CommentToken{
 		_type: Comment,
-		data:  ""}
+		position: Position{
+			StartLine:   ln,
+			StartColumn: ch,
+			EndLine:     ln,
+			EndColumn:   ch},
+		data: ""}
 }
 
-func NewTextToken() *TextToken {
+func NewTextToken(ln int, ch int) *TextToken {
 	return &TextToken{
 		_type: Text,
-		data:  ""}
+		position: Position{
+			StartLine:   ln,
+			StartColumn: ch,
+			EndLine:     ln,
+			EndColumn:   ch},
+		data: ""}
 }
 
-func NewCodeToken() *CodeToken {
+func NewCodeToken(ln int, ch int) *CodeToken {
 	return &CodeToken{
 		_type: Code,
-		data:  ""}
+		position: Position{
+			StartLine:   ln,
+			StartColumn: ch,
+			EndLine:     ln,
+			EndColumn:   ch},
+		data: ""}
 }
 
-func NewEndOfFileToken() *EndOfFileToken {
+func NewEndOfFileToken(ln int, ch int) *EndOfFileToken {
 	return &EndOfFileToken{
-		_type: EndOfFile}
+		_type: EndOfFile,
+		position: Position{
+			StartLine:   ln,
+			StartColumn: ch,
+			EndLine:     ln,
+			EndColumn:   ch}}
 }
 
 type Token interface {
 	GetType() TokenType
+	GetPosition() Position
 	GetName() string
 	GetData() string
 	GetAttributes() []Attribute
 	GetAttributeType() AttributeType
 	GetIsSelfClosing() bool
 	GetIsComponent() bool
-	NewAttribute()
+	SetPosition(Position)
+	NewAttribute(int, int)
 	AppendToName(string)
 	AppendToData(string)
 	AppendToAttributeName(string)
 	AppendToAttributeValue(string)
 	SetAttributeType(AttributeType)
+	SetAttributeNamePosition(Position)
+	SetAttributeValuePosition(Position)
 	SetIsComponent(bool)
 	SetIsSelfClosing(bool)
 	Print()
@@ -146,6 +203,32 @@ func (_self *CodeToken) GetType() TokenType {
 
 func (_self *EndOfFileToken) GetType() TokenType {
 	return _self._type
+}
+
+// GetPosition()
+
+func (_self *StartTagToken) GetPosition() Position {
+	return _self.position
+}
+
+func (_self *EndTagToken) GetPosition() Position {
+	return _self.position
+}
+
+func (_self *CommentToken) GetPosition() Position {
+	return _self.position
+}
+
+func (_self *TextToken) GetPosition() Position {
+	return _self.position
+}
+
+func (_self *CodeToken) GetPosition() Position {
+	return _self.position
+}
+
+func (_self *EndOfFileToken) GetPosition() Position {
+	return _self.position
 }
 
 // GetName()
@@ -331,32 +414,70 @@ func (_self *EndOfFileToken) GetIsComponent() bool {
 	return false
 }
 
+// SetPosition()
+
+func (_self *StartTagToken) SetPosition(position Position) {
+	_self.position = position
+}
+
+func (_self *EndTagToken) SetPosition(position Position) {
+	_self.position = position
+}
+
+func (_self *CommentToken) SetPosition(position Position) {
+	_self.position = position
+}
+
+func (_self *TextToken) SetPosition(position Position) {
+	_self.position = position
+}
+
+func (_self *CodeToken) SetPosition(position Position) {
+	_self.position = position
+}
+
+func (_self *EndOfFileToken) SetPosition(position Position) {
+	_self.position = position
+}
+
 // NewAttribute()
 
-func (_self *StartTagToken) NewAttribute() {
+func (_self *StartTagToken) NewAttribute(ln int, ch int) {
 	_self.attributes = append(_self.attributes, Attribute{
-		Type:  NormalAttribute,
+		Type: NormalAttribute,
+		NamePosition: Position{
+			StartLine:   ln,
+			StartColumn: ch,
+			EndLine:     ln,
+			EndColumn:   ch - 1,
+		},
+		ValuePosition: Position{
+			StartLine:   ln,
+			StartColumn: ch + 2,
+			EndLine:     ln,
+			EndColumn:   ch + 1,
+		},
 		Name:  "",
 		Value: ""})
 }
 
-func (_self *EndTagToken) NewAttribute() {
+func (_self *EndTagToken) NewAttribute(ln int, ch int) {
 	utils.Assert(false, "token has attributes property", 2)
 }
 
-func (_self *CommentToken) NewAttribute() {
+func (_self *CommentToken) NewAttribute(ln int, ch int) {
 	utils.Assert(false, "token has attributes property", 2)
 }
 
-func (_self *TextToken) NewAttribute() {
+func (_self *TextToken) NewAttribute(ln int, ch int) {
 	utils.Assert(false, "token has attributes property", 2)
 }
 
-func (_self *CodeToken) NewAttribute() {
+func (_self *CodeToken) NewAttribute(ln int, ch int) {
 	utils.Assert(false, "token has attributes property", 2)
 }
 
-func (_self *EndOfFileToken) NewAttribute() {
+func (_self *EndOfFileToken) NewAttribute(ln int, ch int) {
 	utils.Assert(false, "token has data property", 2)
 }
 
@@ -415,7 +536,11 @@ func (_self *EndOfFileToken) AppendToData(s string) {
 // AppendToAttributeName()
 
 func (_self *StartTagToken) AppendToAttributeName(s string) {
+	utils.Assert(runeCount(s) == 1, "AppendToAttributeName(s string) where s is only 1 character", 2)
 	_self.attributes[len(_self.attributes)-1].Name = _self.attributes[len(_self.attributes)-1].Name + s
+	_self.attributes[len(_self.attributes)-1].NamePosition.EndColumn++
+	_self.attributes[len(_self.attributes)-1].ValuePosition.StartColumn++
+	_self.attributes[len(_self.attributes)-1].ValuePosition.EndColumn++
 }
 
 func (_self *EndTagToken) AppendToAttributeName(s string) {
@@ -441,7 +566,9 @@ func (_self *EndOfFileToken) AppendToAttributeName(s string) {
 // AppendToAttributeValue()
 
 func (_self *StartTagToken) AppendToAttributeValue(s string) {
+	utils.Assert(runeCount(s) == 1, "AppendToAttributeName(s string) where s is only 1 character", 2)
 	_self.attributes[len(_self.attributes)-1].Value = _self.attributes[len(_self.attributes)-1].Value + s
+	_self.attributes[len(_self.attributes)-1].ValuePosition.EndColumn++
 }
 
 func (_self *EndTagToken) AppendToAttributeValue(s string) {
@@ -468,6 +595,16 @@ func (_self *EndOfFileToken) AppendToAttributeValue(s string) {
 
 func (_self *StartTagToken) SetAttributeType(t AttributeType) {
 	_self.attributes[len(_self.attributes)-1].Type = t
+	switch t {
+	case ArgumentAttribute:
+		_self.attributes[len(_self.attributes)-1].ValuePosition.StartLine = 0
+		_self.attributes[len(_self.attributes)-1].ValuePosition.StartColumn = 0
+		_self.attributes[len(_self.attributes)-1].ValuePosition.EndLine = 0
+		_self.attributes[len(_self.attributes)-1].ValuePosition.EndColumn = 0
+	default:
+		_self.attributes[len(_self.attributes)-1].ValuePosition.StartColumn--
+		_self.attributes[len(_self.attributes)-1].ValuePosition.EndColumn++
+	}
 }
 
 func (_self *EndTagToken) SetAttributeType(t AttributeType) {
@@ -488,6 +625,58 @@ func (_self *CodeToken) SetAttributeType(t AttributeType) {
 
 func (_self *EndOfFileToken) SetAttributeType(t AttributeType) {
 	utils.Assert(false, "token has attributes property", 2)
+}
+
+// SetAttributeNamePosition()
+
+func (_self *StartTagToken) SetAttributeNamePosition(position Position) {
+	_self.attributes[len(_self.attributes)-1].NamePosition = position
+}
+
+func (_self *EndTagToken) SetAttributeNamePosition(position Position) {
+	utils.Assert(false, "token has attributes property", 2)
+}
+
+func (_self *CommentToken) SetAttributeNamePosition(position Position) {
+	utils.Assert(false, "token has attributes property", 2)
+}
+
+func (_self *TextToken) SetAttributeNamePosition(position Position) {
+	utils.Assert(false, "token has attributes property", 2)
+}
+
+func (_self *CodeToken) SetAttributeNamePosition(position Position) {
+	utils.Assert(false, "token has attributes property", 2)
+}
+
+func (_self *EndOfFileToken) SetAttributeNamePosition(position Position) {
+	utils.Assert(false, "token has data property", 2)
+}
+
+// SetAttributeValuePosition()
+
+func (_self *StartTagToken) SetAttributeValuePosition(position Position) {
+	_self.attributes[len(_self.attributes)-1].ValuePosition = position
+}
+
+func (_self *EndTagToken) SetAttributeValuePosition(position Position) {
+	utils.Assert(false, "token has attributes property", 2)
+}
+
+func (_self *CommentToken) SetAttributeValuePosition(position Position) {
+	utils.Assert(false, "token has attributes property", 2)
+}
+
+func (_self *TextToken) SetAttributeValuePosition(position Position) {
+	utils.Assert(false, "token has attributes property", 2)
+}
+
+func (_self *CodeToken) SetAttributeValuePosition(position Position) {
+	utils.Assert(false, "token has attributes property", 2)
+}
+
+func (_self *EndOfFileToken) SetAttributeValuePosition(position Position) {
+	utils.Assert(false, "token has data property", 2)
 }
 
 // SetIsComponent()
@@ -546,13 +735,14 @@ func (_self *EndOfFileToken) SetIsSelfClosing(b bool) {
 
 func (_self *StartTagToken) Print() {
 	var component string
-	if _self.isSelfClosing {
+	if _self.isComponent {
 		component = "(Component)"
 	}
 	var selfClosing string
 	if _self.isSelfClosing {
 		selfClosing = "(SelfClosing)"
 	}
+	verbose.Printf(0, "%v", _self.position)
 	verbose.Printf(0, "%s\t%s\t%d Attributes\t%s\t%s\n",
 		_self._type,
 		_self.name,
@@ -560,26 +750,40 @@ func (_self *StartTagToken) Print() {
 		component,
 		selfClosing)
 	for i, attribute := range _self.attributes {
-		verbose.Printf(0, " attribute%d\t%s\t%s\t%s\n", i, attribute.Type, attribute.Name, attribute.Value)
+		switch attribute.Type {
+		case ArgumentAttribute:
+			verbose.Printf(0, " attribute%d\t%s\t%v%s\n", i, attribute.Type, attribute.NamePosition, attribute.Name)
+		case NormalAttribute:
+			verbose.Printf(0, " attribute%d\t%s \t%v%s\t%v%s\n", i, attribute.Type, attribute.NamePosition, attribute.Name, attribute.ValuePosition, attribute.Value)
+		case EventAttribute:
+			verbose.Printf(0, " attribute%d\t%s  \t%v%s\t%v{%s}\n", i, attribute.Type, attribute.NamePosition, attribute.Name, attribute.ValuePosition, attribute.Value)
+		default:
+			verbose.Printf(0, " attribute%d\t%s\t%v%s\t%v{%s}\n", i, attribute.Type, attribute.NamePosition, attribute.Name, attribute.ValuePosition, attribute.Value)
+		}
 	}
 }
 
 func (_self *EndTagToken) Print() {
+	verbose.Printf(0, "%v", _self.position)
 	verbose.Printf(0, "%s\t%s\n", _self._type, _self.name)
 }
 
 func (_self *CommentToken) Print() {
+	verbose.Printf(0, "%v", _self.position)
 	verbose.Printf(0, "%s\t%s\n", _self._type, _self.data)
 }
 
 func (_self *TextToken) Print() {
+	verbose.Printf(0, "%v", _self.position)
 	verbose.Printf(0, "%s   \t%s\n", _self._type, _self.data)
 }
 
 func (_self *CodeToken) Print() {
+	verbose.Printf(0, "%v", _self.position)
 	verbose.Printf(0, "%s\t%s\n", _self._type, _self.data)
 }
 
 func (_self *EndOfFileToken) Print() {
+	verbose.Printf(0, "%v", _self.position)
 	verbose.Printf(0, "%s\n", _self._type)
 }

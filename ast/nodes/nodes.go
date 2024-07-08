@@ -177,7 +177,7 @@ func NewAttributeNode(attribute *tokens.Attribute) *AttributeNode {
 
 func NewArgumentAttributeNode(attribute *tokens.Attribute) *ArgumentAttributeNode {
 	return &ArgumentAttributeNode{
-		_type: Attribute,
+		_type: ArgumentAttribute,
 		name:  attribute.Name,
 	}
 }
