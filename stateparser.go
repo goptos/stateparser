@@ -177,7 +177,7 @@ func (_self *Parser) ParseView(source string) error {
 	*/
 	_self.Ast.TextNodeProcessor = func(node *nodes.TextNode, depth *int) error {
 		(*nodes.TextNode).Print(node, depth)
-		_self.appendToStatement(".Text(\"%s\")",
+		_self.appendToStatement(".Text(`%s`)",
 			node.GetData())
 		return nil
 	}
@@ -186,6 +186,28 @@ func (_self *Parser) ParseView(source string) error {
 	*/
 	_self.Ast.DynTextNodeProcessor = func(node *nodes.DynTextNode, depth *int) error {
 		(*nodes.DynTextNode).Print(node, depth)
+		var effect = node.GetEffect()
+		// ugly bug gets the job done for now
+		effect = strings.Trim(effect, " ")
+		effect = strings.Trim(effect, "\t")
+		effect = strings.Trim(effect, "\r")
+		effect = strings.Trim(effect, "\n") // not...
+		effect = strings.Trim(effect, " ")
+		effect = strings.Trim(effect, "\t")
+		effect = strings.Trim(effect, "\r")
+		effect = strings.Trim(effect, "\n") // ... a...
+		effect = strings.Trim(effect, " ")
+		effect = strings.Trim(effect, "\t")
+		effect = strings.Trim(effect, "\r")
+		effect = strings.Trim(effect, "\n") // ... copy/paste...
+		effect = strings.Trim(effect, " ")
+		effect = strings.Trim(effect, "\t")
+		effect = strings.Trim(effect, "\r")
+		effect = strings.Trim(effect, "\n") // ... mistake!
+		if strings.Split(effect, " ")[0] == "func()" {
+			_self.appendToStatement(".DynText(cx, %s)", effect)
+			return nil
+		}
 		_self.appendToStatement(".DynText(cx, func() string { return fmt.Sprintf(\"%%v\", %s) })",
 			node.GetEffect())
 		return nil
